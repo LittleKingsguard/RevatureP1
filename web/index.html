@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="AppStyling.css">
+    <title>Title</title>
+    <script src="https://unpkg.com/react@17/umd/react.development.js" ></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" ></script>
+    <script>
+        const e = React.createElement;
+         function LoginBar(props) {
+                 return React.createElement("div", {
+                     id: "login"
+                 }, React.createElement("form", {
+                     method: "post",
+                     action: "BankDemo/user/login"
+                 }, React.createElement("label", {
+                     htmlFor: "username"
+                 }, "Username"), React.createElement("input", {
+                     name: "username",
+                     id: "username"
+                 }), React.createElement("label", {
+                     htmlFor: "password"
+                 }, "Password"), React.createElement("input", {
+                     type: "password",
+                     name: "password",
+                     id: "password"
+                 })), React.createElement("button", {
+                         id: "login",
+                         onClick: () => props.login()
+                     }, "login"),
+                 e("button", {
+                     id: "registerButton",
+                     onClick: () => props.register()
+                 }, "Register"));
+         }
+
+         class Account extends React.Component{
+             constructor(props){
+                 super(props);
+                 this.state = {
+                     key: props.key,
+                     id: props.id,
+                     history: props.history,
+                     balance: props.balance,
+                     statusString: props.statusString,
+                     value: null,
+                     transferTo: null,
+                     seenByEmployee: props.seenByEmployee
+                 };
+
+                 this.handleValueChange = this.handleValueChange.bind(this);
+                 this.handleTransferChange = this.handleTransferChange.bind(this);
+             }
+
+             componentWillReceiveProps(newProps){
+                 if (this.props != newProps){
+                     this.setState(newProps);
+                 }
+             }
+
+             withdraw(){
+                 fetch("BankDemo/transaction/withdraw", {
+                     method: "POST",
+                     headers: {
+                         "Content-Type": `application/json`
+                     },
+                     body: JSON.stringify({
+                         origin: this.state.id,
+                         value: this.state.value,
+                         destination: 0
+                     })
+                 }).then(response => {
+                     return response.json()
+                 })
+                     .then(data => {
+                         let temp = this.state.history;
+                         temp.push(data);
+                         let value = this.state.balance;
+                         value -= data.value;
+                         this.setState({history: temp, balance: value, value: null});
+                     })
+                     .catch(() => {
+                         alert("I'm afraid I can't do that Dave. Have you tried being rich?")
+                     })
+             }
+
+             deposit(){
+                 fetch("BankDemo/transaction/deposit", {
+                     method: "POST",
+                     headers: {
+                         "Content-Type": `application/json`
+                     },
+                     body: JSON.stringify({
+                         destination: this.state.id,
+                         value: this.state.value,
+                         origin: 0
+                     })
+                 }).then(response => {
+                     return response.json()
+                 })
+                     .then(data => {
+                         let temp = this.state.history;
+                         let value = this.state.balance;
+                         temp.push(data);
+                         value += data.value;
+                         this.setState({history: temp, balance: value, value: null});
+                     })
+                     .catch(() => {
+                         alert("I'm afraid I can't do that Dave.")
+                     })
+             }
+
+             transfer(){
+                 fetch("BankDemo/transaction/transfer", {
+                     method: "POST",
+                     headers: {
+                         "Content-Type": `application/json`
+                     },
+                     body: JSON.stringify({
+                         origin: this.state.id,
+                         value: this.state.value,
+                         destination: this.state.transferTo
+                     })
+                 }).then(response => {
+                     return response.json()
+                 })
+                     .then(data => {
+                         let temp = this.state.history;
+                         temp.push(data);
+                         this.setState({history: temp});
+                     })
+                     .catch(() => {
+                         alert("I'm afraid I can't do that Dave. Have you tried being rich?")
+                     })
+             }
+
+             handleValueChange(event){
+                 console.log(event);
+                 this.state.value = event.target.value;
+                 console.log(this.state.value);
+             }
+
+             handleTransferChange(event){
+                 this.setState({transferTo: event.target.value});
+             }
+
+             displayHistory() {
+                 console.log("This ran");
+                 if (this.state.history === null){
+                     console.log("State: " + this.state.history);
+                     console.log("Props: " + this.props.history);
+                 }
+                 else{
+                     console.log("So did this");
+                     let incoming = [];
+                     let outgoing = [];
+                     this.state.history.forEach((element) => {
+                         if (element === null){
+                             return;
+                         }
+                       if (element.destination == this.state.id){
+                           incoming.push(this.transactionString(element));
+                       }
+                       else{
+                           outgoing.push(this.transactionString(element));
+                       }
+                     });
+                     return e("div", {
+                         id: "transactionPane" + this.state.id
+                     }, e("div", {
+                         class: "deposit_pane",
+                         id: "depositPane" + this.state.id
+                     }, incoming),
+                         e("div", {
+                             class: "withdrawal_pane",
+                             id: "withdrawalPane" + this.state.id
+                         }, outgoing), e("div", {
+                             id: "actionPane" + this.state.id
+                         }, e("div", {
+                                 onClick: () => this.deposit(),
+                             class: "transaction",
+                             }, "Deposit", e("input", {
+                                 placeholder: "value",
+                                 type: "number",
+                                 onChange: this.handleValueChange.bind(this),
+                                 onClick: (event) => event.stopPropagation()
+                             }),),e("div", {
+                             onClick: () => this.withdraw(),
+                             class: "transaction right",
+                         }, "Withdraw", e("input", {
+                             placeholder: "value",
+                             type: "number",
+                             onChange: this.handleValueChange.bind(this),
+                             onClick: (event) => event.stopPropagation()
+                         })),  e("div", {
+                             onClick: () => this.transfer(),
+                             class: "transaction",
+                         }, "Transfer", e("input", {
+                             placeholder: "value",
+                             type: "number",
+                             onChange: this.handleValueChange.bind(this),
+                             onClick: (event) => event.stopPropagation()
+                         }), e("input", {
+                             placeholder: "Transfer",
+                             type: "number",
+                             onChange: this.handleTransferChange.bind(this),
+                             onClick: (event) => event.stopPropagation()
+                         }))))
+                 }
+             }
+
+             approveTransfer(i){
+                 fetch("BankDemo/transaction/".concat(i.toString(), "/approve"), {
+                     method: "GET"
+                 }).then(response => {
+                     console.log(response);
+                     return response.json()})
+                     .then(data => {
+                         if (data) {
+                             console.log(data);
+                             console.log(this.state.history);
+                             let temp = this.state.history;
+                             let value = this.state.balance;
+                             this.state.history.forEach((element, index) => {
+                                 console.log(data.id + " = " + element.id);
+                                if (data.id === element.id){
+                                    temp[index] = data;
+                                    value += data.value;
+                                }
+                             });
+                             this.setState({
+                                 history: temp,
+                                 balance: value
+                             });
+                         }
+                     })
+                     .catch(() => {alert("That username and password not found. Did you spell it right?")})
+
+             }
+             denyTransfer(i){
+                 fetch("BankDemo/transaction/".concat(i.toString(), "/deny"), {
+                     method: "GET"
+                 }).then(response => {
+                     return response.json()})
+                     .then(data => {
+                         if (data) {
+                             let temp = this.state.history;
+                             this.state.history.forEach((element, index) => {
+                                 if (data.id === element.id){
+                                     temp[index] = data;
+                                 }
+                             });
+                             this.setState({
+                                 history: temp
+                             });
+                         }
+                     })
+                     .catch(() => {alert("That username and password not found. Did you spell it right?")})
+
+             }
+
+             transactionString(trans) {
+                 if (trans.type === "Transfer"){
+                     if (trans.approved == 1) {
+                         if (trans.destination == this.state.id) {
+                             return e("div", {
+                                    class: "transactionList",
+                                     key: "transorigin" + trans.id
+                                 }, e("button", {
+                                     onClick: () => this.approveTransfer(trans.id)
+                                 }, "Approve"),
+                                 " Transfer #" + trans.id + " of $" + trans.value + " to account #" + trans.destination +" ",
+                                 e("button", {
+                                     onClick: () => this.denyTransfer(trans.id)
+                                 }, "Deny"));
+                         }
+                         else{
+                             return
+                         }
+                     }
+                     else if (trans.approved == 3){
+                         return
+                     }
+                     if (trans.origin == this.state.id){
+                         return e("div", {
+                             class: "transactionList",
+                             key: "transorigin" + trans.id
+                         }, "Transfer #" + trans.id + " of $" + trans.value + " to account #" + trans.destination);
+                     }
+                     else {return e("div", {
+                         class: "transactionList",
+                         key: "transdest" + trans.id
+                     }, "Transfer #" + trans.id + " of $" + trans.value + " from account #" + trans.origin);
+                     }
+                 }
+                 else {
+                     return e("div", {
+                         class: "transactionList",
+                     key: "trans" + trans.id
+                 }, trans.type + " #" + trans.id + " of $" + trans.value);
+                 }
+             }
+
+
+             render() {
+                 if (this.state.seenByEmployee) {
+                     return e("div", {
+                             id: "account" + this.state.id
+                         }, e("div", {
+                             id: "account" + this.state.id + "Overview"
+                         },
+                         e("div", {
+                             class: "id_column"
+                         }, this.state.id),
+                         e("div", {
+                             class: "balance_column"
+                         }, this.state.balance),
+                         e("div", {
+                             class: "status_string"
+                         }, this.state.statusString),
+                         e("button", {
+                             id: "Approve" + this.state.id,
+                             onClick: () => this.props.approveAcc()
+                         }, "Approve"),
+                         e("button", {
+                             id: "Deny" + this.state.id,
+                             onClick: () => this.props.denyAcc()
+                         }, "Deny")));
+                 } else {
+                     return e("div", {
+                             id: "account" + this.state.id
+                         }, e("div", {
+                             id: "account" + this.state.id + "Overview",
+                         class: "accOverview",
+                         onClick: () => this.props.getTrans()
+                         },
+                         e("div",  {
+                             class: "id_column"
+                         }, this.state.id),
+                         e("div", {
+                             class: "balance_column"
+                         }, this.state.balance),
+                         e("div", {
+                             class: "status_string"
+                         }, this.state.statusString),
+                         ),
+                         e("div", {
+                             id: "account" + this.state.id + "History"
+                         }, this.displayHistory()));
+                 }
+             }
+         }
+
+         class Transaction extends React.Component{
+             constructor(props) {
+                 super(props);
+                 this.state = {
+                     type: props.type,
+                     id: props.id,
+                     origin: props.origin,
+                     destination: props.destination
+                 }
+             }
+
+             render(){
+                 if (this.props.type === "Transfer"){
+                     return e("li", null, "Transfer #" + this.props.id + " from account #" + this.props.origin + " to Account #" + this.props.destination)
+                 }
+                 return e("li", null, this.props.type + " #" + this.props.id + "on account #" + Math.max(this.props.origin, this.props.destination))
+             }
+         }
+
+         class Menu extends React.Component {
+             constructor(props) {
+                 super(props);
+                 this.state = {
+                     loginType: null,
+                     username : null,
+                     password : null,
+                     firstName : null,
+                     lastName : null,
+                     fullName : null,
+                     accountsHeld : null,
+                     applyAccount: false,
+                     newAccountBalance : 0,
+                     viewingAccounts: false,
+                     viewingCustomers: false,
+                     viewingTrans: false,
+                     allTrans: null
+                 }
+             }
+             buildAccounts(accounts){
+                 if (!accounts){
+                     return
+                 }
+                 console.log(accounts);
+                 let accountArr = accounts.map((element, index)=>{
+                     console.log(element);
+                     let newprops = element;
+                     newprops.getTrans = () => this.getTransactions(index);
+                     newprops.key = "account" + element.id;
+                     return e(Account, newprops);
+                 });
+                 console.log(accountArr);
+                 accountArr.unshift(React.createElement("div", {
+                         id: "accountsHeader",
+                     }, e("div", {
+                         id: "accNoHead",
+                     class: "id_column"
+                     }, "Account #"),
+                     e("div", {
+                         id: "accBalanceHead",
+                         class: "balance_column"
+                     }, "Account Balance"),
+                     e("div", {
+                         id: "accStatusHead",
+                         class: "status_string"
+                     }, "Account Status")));
+                 return accountArr;
+             }
+
+             getTransactions(i){
+                     if (this.state.accountsHeld[i].history == null && this.state.accountsHeld[i].statusString === "Active") {
+                         fetch("BankDemo/account/".concat(this.state.accountsHeld[i].id.toString()), {
+                             method: "GET"
+                         }).then(response => {
+                             return response.json()
+                         })
+                             .then(data => {
+                                 let tempAccounts = this.state.accountsHeld;
+                                 tempAccounts[i] = data;
+                                 this.setState({accountsHeld: tempAccounts});
+                             })
+                             .catch(() => {
+                                 alert("Account not found. How did you do that?")
+                             })
+                     } else {
+                         let tempAccounts = this.state.accountsHeld;
+                         tempAccounts[i].history = null;
+                         this.setState({accountsHeld: tempAccounts});
+                     }
+                 }
+
+             customerDisplay(props){
+                 return React.createElement("div", {
+                         id : "customerDisplay"
+                     },e("div", {
+                         class: "top",
+                 }, React.createElement("h4", {
+                         id: "username"
+                     }, props.username),
+                     React.createElement("h4", {
+                         id : "fullName"
+                     }, "Welcome " +props.fullName),
+                     React.createElement("button", {
+                         id : "logout",
+                         onClick: () => props.logout()
+                     }, "logout")), this.buildAccounts(props.accountsHeld),
+                 this.applyAccountDisplay());
+             }
+
+             applyAccount(){
+                 fetch("BankDemo/customer/".concat(this.state.username, "/apply"), {
+                     method: "POST",
+                     headers: {
+                         "Content-Type": `application/json`
+                     },
+                     body: JSON.stringify({
+                         balance: this.state.newAccountBalance
+                     })
+                 }).then(response => {
+                     console.log(response);
+                     return response.json()
+                 })
+                     .then(data => {
+                         console.log(data);
+                         if(data){
+                             this.setState({
+                                newAccountBalance: 0,
+                                 applyAccount: false
+                             });
+                             this.getCustomer(this.state.username);
+                         }
+                     })
+                     .catch(() => {
+                         alert("Account not found. How did you do that?")
+                     })
+             }
+
+             applyAccountDisplay(){
+                 if (this.state.applyAccount){
+                     return e("div", {
+                             class: 'application'
+                         }
+                     , e("input", {
+                         placeholder: "Balance",
+                         type: "number",
+                         step: 0.01,
+                         onChange : (event) => this.setState({newAccountBalance: event.target.value})
+                     }), e("button", {
+                         onClick : () => this.applyAccount()
+                         }, "Apply Now!"))
+                 }
+                 else {
+                     return e("div", {
+                         class: 'application',
+                         onClick : () => {this.setState({applyAccount : true});}
+                     }, "Open a new account today!")
+                 }
+             }
+
+             login() {
+                 fetch("BankDemo/user/login", {
+                     method: "POST",
+                     headers: {
+                         "Content-Type": `application/json`
+                     },
+                     body: JSON.stringify({
+                         username: document.getElementById("username").value,
+                         password: document.getElementById("password").value
+                     })
+                 }).then(response => {
+                     return response.json()})
+                     .then(data => {
+                         let typeFound = null;
+                         Object.keys(data).forEach((key) => {
+                             if (key === "employee"){
+                                 typeFound = "Employee";
+                                 this.setState({loginType : "Employee"});
+                             }
+                             if (key === "accountsHeld") {
+                                 typeFound = "Customer";
+                                 this.setState({loginType: "Customer"});
+                             }});
+                             if (typeFound === "Customer"){
+                                 this.getCustomer(data.username);
+                             }
+                             if (typeFound === "Employee"){
+                                 this.setState(data);
+                             }
+
+                     })
+                     .catch(() => {alert("That username and password not found. Did you spell it right?")})
+             }
+
+             logout(){
+                 this.setState({
+                         loginType: null,
+                         username : null,
+                         password : null,
+                         firstName : null,
+                         lastName : null,
+                         fullName : null,
+                         accountsHeld : null,
+                         applyAccount: false,
+                         newAccountBalance : 0,
+                         viewingAccounts: false,
+                         viewingCustomers: false,
+                         viewingTrans: false,
+                         allTrans: null
+                     })
+             }
+
+             getCustomer(username) {
+                 fetch("BankDemo/customer/access/".concat(username), {
+                     method: "GET"
+                 }).then(response => {
+                     return response.json()})
+                     .then(data => {
+                         this.setState(data);
+                     })
+                     .catch(() => {alert("That username and password not found. Did you spell it right?")})
+             }
+
+             registryBar() {
+                 return e("div", null,
+                 e("input",{
+                     placeholder: "username",
+                     onChange: (event) => this.setState({username: event.target.value}),
+                     value: this.state.username
+                 }),
+                 e("input", {
+                     type: "password",
+                     placeholder: "password",
+                     onChange: (event) => this.setState({password: event.target.value}),
+                     value: this.state.password
+             }),
+                     e("input",{
+                         placeholder: "First Name",
+                         onChange: (event) => this.setState({firstName: event.target.value}),
+                         value: this.state.firstName
+                     }),
+                     e("input",{
+                         placeholder: "Last Name",
+                         onChange: (event) => this.setState({lastName: event.target.value}),
+                         value: this.state.lastName
+                     }),
+                     e("button",{
+                         onClick: (event) => this.register()
+                     }, "Register")
+                 )
+             }
+
+             register() {
+                 fetch("BankDemo/user/register", {
+                     method: "POST",
+                     headers: {
+                         "Content-Type": `application/json`
+                     },
+                     body: JSON.stringify({
+                         username: this.state.username,
+                         password: this.state.password,
+                         lastName: this.state.lastName,
+                         firstName: this.state.firstName
+                     })
+                 }).then(response => {
+                     return response.json()})
+                     .then(data => {
+                         let typeFound = null;
+                         Object.keys(data).forEach((key) => {
+                             if (key === "employee"){
+                                 typeFound = "Employee";
+                                 this.setState({loginType : "Employee"});
+                             }
+                             if (key === "accountsHeld") {
+                                 typeFound = "Customer";
+                                 this.setState({loginType: "Customer"});
+                             }
+                             if (typeFound === "Customer"){
+                                 this.getCustomer(data.username);
+                             }
+                         });
+
+                     })
+                     .catch(() => {alert("That username and password not found. Did you spell it right?")})
+
+             }
+
+             AttemptRegister(){
+                 this.setState({loginType: "New"});
+             }
+
+             employeeBar(props) {
+                 return React.createElement("div", {
+                         id: "customerDisplay",
+                        class: "top"
+                     }, React.createElement("h4", {
+                         id: "username"
+                     }, props.username),
+                     React.createElement("h4", {
+                         id: "fullName"
+                     }, props.fullName),
+                     React.createElement("button", {
+                         id: "logout",
+                         onClick: () => props.logout()
+                     }, "logout"), this.viewAccounts(),
+                 this.transactionButton(),
+                 e("button", null, "Customers"));
+             }
+
+             viewAccounts(){
+                 let arr = null;
+                 if (this.state.viewingAccounts && this.state.accountsHeld === null){
+                     fetch("BankDemo/employee/accounts", {
+                         method: "GET"
+                     }).then(response => {
+                         return response.json()})
+                         .then(data => {
+                             this.setState({accountsHeld: data,});
+                             arr = this.buildEmpAccounts(data);
+                         })
+                         .catch(() => {alert("No accounts available.")});
+                 }
+                 else if (this.state.accountsHeld === null){
+                     return e("button", {
+                         onClick: () => this.setState({viewingAccounts: true})
+                     }, "View Pending Accounts")
+                 }
+                 else {
+                     arr = this.buildEmpAccounts(this.state.accountsHeld) ;
+                 }
+                 return arr;
+             }
+
+
+             buildEmpAccounts(accounts){
+                 if (!accounts){
+                     return
+                 }
+                 console.log(accounts);
+                 let accountArr = accounts.map((element, index)=>{
+                     console.log(element);
+                     let newprops = element;
+                     newprops.key = "account" + element.id;
+                     newprops.seenByEmployee = true;
+                     newprops.approveAcc = ()=> this.approveAccount(index);
+                     newprops.denyAcc = ()=> this.denyAccount(index);
+                     return e(Account, newprops);
+                 });
+                 accountArr.unshift(React.createElement("div", {
+                         id: "accountsHeader",
+                     }, e("div", {
+                         id: "accNoHead",
+                         class: "id_column"
+                     }, "Account #"),
+                     e("div", {
+                         id: "accBalanceHead",
+                         class: "balance_column"
+                     }, "Account Balance"),
+                     e("div", {
+                         id: "accStatusHead",
+                         class: "status_string"
+                     }, "Account Status")));
+                 return accountArr;
+             }
+
+             approveAccount(i){
+                 fetch("BankDemo/account/".concat(this.state.accountsHeld[i].id, "/approve"), {
+                     method: "GET"
+                 }).then(response => {
+                     return response.json()})
+                     .then(data => {
+                         if (data) {
+                         let temp = this.state.accountsHeld;
+                         temp.splice(i, 1);
+                         this.setState({accountsHeld: temp});
+                     }
+                     })
+                     .catch(() => {alert("That username and password not found. Did you spell it right?")});
+             }
+             denyAccount(i){
+                 fetch("BankDemo/account/".concat(this.state.accountsHeld[i].id, "/deny"), {
+                     method: "GET"
+                 }).then(response => {
+                     return response.json()})
+                     .then(data => {
+                         if (data) {
+                             let temp = this.state.accountsHeld;
+                             temp.splice(i, 1);
+                             this.setState({accountsHeld: temp});
+                         }
+                     })
+                     .catch(() => {alert("That username and password not found. Did you spell it right?")});
+             }
+
+             transaction(element){
+                 if (element.type === "Transfer"){
+                     return e("li", null, "Transfer #" + element.id + " from account #" + element.origin + " to Account #" + element.destination)
+                 }
+                 return e("li", null, element.type + " #" + element.id + "on account #" + Math.max(element.origin, element.destination))
+             }
+
+             getAllTransactions() {
+                 let display = null;
+                 if (this.state.allTrans === null) {
+                 fetch("BankDemo/employee/transactions", {
+                     method: "GET"
+                 }).then(response => {
+                     console.log(response);
+                     return response.json()
+                 })
+                     .then(data => {
+                         console.log(data);
+                         if (data) {
+                             this.setState({allTrans: data});
+                             console.log(display);
+                         }
+                     })
+                     .catch(() => {
+                         alert("That username and password not found. Did you spell it right?")
+                     });
+                 }
+             }
+
+             displayTransactions(){
+                 if (this.state.allTrans !==null){
+                 let display = this.state.allTrans.map((element => {
+                     let temp = element;
+                     temp.key = "Trans" + element.id;
+                     console.log(temp);
+                     return e(Transaction, temp)
+                 }));
+                 return e("div", null, display);
+                 }
+                 else {
+                     return
+                 }
+             }
+
+             transactionButton(){
+                 if (this.state.viewingTrans){
+                     return e("div", null,
+                     e("button", {
+                         onClick: () => this.setState({viewingTrans: false})
+                     }, "Close Transactions"),
+                     e("div", null, this.displayTransactions()))
+                 }
+                 else{
+                     return e("button", {
+                         onClick: () => {
+                             this.setState({viewingTrans: true});
+                             this.getAllTransactions();
+                         }
+                     }, "Display Transactions")
+                 }
+             }
+
+             render(){
+                 if (this.state.loginType === null){
+                     return LoginBar({
+                         login : () => this.login(),
+                        register: () => this.AttemptRegister()});
+                 }
+                 else if (this.state.loginType === "Customer"){
+                     let newprops = this.state;
+                     newprops.logout = () => this.logout();
+                     return this.customerDisplay(newprops);
+                 }
+                 else if (this.state.loginType === "New"){
+                     let newprops = this.state;
+                     newprops.logout = () => this.logout();
+                     return this.registryBar();
+                 }
+                 else {
+                     let newprops = this.state;
+                     newprops.logout = () => this.logout();
+                     return this.employeeBar(newprops);
+                 }
+             }
+         }
+    </script>
+</head>
+    <body>
+        <div class="Main">
+            <h1>Ledger Banking</h1>
+            <h2>We like things simple here.</h2>
+        </div>
+        <div id="Main" class="Main">
+    </div>
+</body>
+<script>
+    ReactDOM.render(React.createElement(Menu), document.getElementById("Main"));
+</script>
+</html>
