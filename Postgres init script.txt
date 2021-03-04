@@ -1,0 +1,320 @@
+-- Table: public.users
+
+-- DROP TABLE public.users;
+
+CREATE TABLE public.users
+(
+    username character varying(20) COLLATE pg_catalog."default" NOT NULL,
+    encrypted_password text COLLATE pg_catalog."default" NOT NULL,
+    first_name character varying(20) COLLATE pg_catalog."default" NOT NULL,
+    last_name character varying(20) COLLATE pg_catalog."default" NOT NULL,
+    is_employee boolean NOT NULL,
+    CONSTRAINT users_pkey PRIMARY KEY (username)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE public.users
+    OWNER to "JavaDemo";
+
+-- Table: public.account_status
+
+-- DROP TABLE public.account_status;
+
+CREATE TABLE public.account_status
+(
+    account_status_id integer NOT NULL DEFAULT nextval('account_status_status_id_seq'::regclass),
+    status_name character varying(8) COLLATE pg_catalog."default",
+    CONSTRAINT account_status_pkey PRIMARY KEY (account_status_id)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE public.account_status
+    OWNER to "JavaDemo";
+
+-- Table: public.account
+
+-- DROP TABLE public.account;
+
+CREATE TABLE public.account
+(
+    account_id integer NOT NULL DEFAULT nextval('account_account_id_seq'::regclass),
+    balance numeric NOT NULL,
+    status_id integer NOT NULL,
+    CONSTRAINT account_pkey PRIMARY KEY (account_id),
+    CONSTRAINT account_status_key FOREIGN KEY (status_id)
+        REFERENCES public.account_status (account_status_id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE public.account
+    OWNER to "JavaDemo";
+    
+-- Table: public.transaction_status
+
+-- DROP TABLE public.transaction_status;
+
+CREATE TABLE public.transaction_status
+(
+    transaction_status_id integer NOT NULL DEFAULT nextval('transaction_status_transaction_status_id_seq'::regclass),
+    status_name character varying(8) COLLATE pg_catalog."default" NOT NULL,
+    CONSTRAINT transaction_status_pkey PRIMARY KEY (transaction_status_id)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE public.transaction_status
+    OWNER to "JavaDemo";
+    
+-- Table: public.transactions
+
+-- DROP TABLE public.transactions;
+
+CREATE TABLE public.transactions
+(
+    transaction_id integer NOT NULL DEFAULT nextval('transaction_transaction_id_seq'::regclass),
+    amount numeric NOT NULL,
+    origin integer,
+    destination integer,
+    status_id integer NOT NULL,
+    CONSTRAINT transaction_pkey PRIMARY KEY (transaction_id),
+    CONSTRAINT destination_key FOREIGN KEY (destination)
+        REFERENCES public.account (account_id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION,
+    CONSTRAINT origin_key FOREIGN KEY (origin)
+        REFERENCES public.account (account_id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION,
+    CONSTRAINT status_key FOREIGN KEY (status_id)
+        REFERENCES public.transaction_status (transaction_status_id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION,
+    CONSTRAINT transactions_amount_check CHECK (amount > 0::numeric)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE public.transactions
+    OWNER to "JavaDemo";
+    
+-- Table: public.user_account
+
+-- DROP TABLE public.user_account;
+
+CREATE TABLE public.user_account
+(
+    user_id character varying(20) COLLATE pg_catalog."default" NOT NULL,
+    account_id integer NOT NULL,
+    CONSTRAINT user_account_pkey PRIMARY KEY (account_id, user_id),
+    CONSTRAINT account_key FOREIGN KEY (account_id)
+        REFERENCES public.account (account_id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION,
+    CONSTRAINT user_key FOREIGN KEY (user_id)
+        REFERENCES public.users (username) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE public.user_account
+    OWNER to "JavaDemo";
+
+-- FUNCTION: public.make_deposit(numeric, integer)
+
+-- DROP FUNCTION public.make_deposit(numeric, integer);
+
+CREATE OR REPLACE FUNCTION public.make_deposit(
+	amount numeric,
+	account_no integer)
+    RETURNS boolean
+    LANGUAGE 'plpgsql'
+
+    COST 100
+    VOLATILE 
+    
+AS $BODY$
+declare
+	target record;
+begin
+	Select * From Account into target
+	Where account_id = account_no;
+	if not found or amount < 0 then
+		return false;
+	end if;
+    -- adding the amount to the receiver's account
+    update account 
+    set balance = balance + amount 
+    where account_id = account_no;
+	
+	INSERT INTO public.transactions(amount, origin, destination, status_id)
+	VALUES (amount, null, account_no, 2);
+	return true;
+end;
+$BODY$;
+
+ALTER FUNCTION public.make_deposit(numeric, integer)
+    OWNER TO postgres;
+
+-- FUNCTION: public.make_withdrawal(numeric, integer)
+
+-- DROP FUNCTION public.make_withdrawal(numeric, integer);
+
+CREATE OR REPLACE FUNCTION public.make_withdrawal(
+	amount numeric,
+	account_no integer)
+    RETURNS boolean
+    LANGUAGE 'plpgsql'
+
+    COST 100
+    VOLATILE 
+    
+AS $BODY$
+declare
+	target record;
+begin
+	Select * From Account into target
+	Where account_id = account_no;
+	if not found or amount < 0 or amount > target.balance then
+		return false;
+	end if;
+    -- adding the amount to the receiver's account
+    update account 
+    set balance = balance - amount 
+    where account_id = account_no;
+	
+	INSERT INTO public.transactions(amount, origin, destination, status_id)
+	VALUES (amount, account_no, null, 2);
+	return true;
+end;
+$BODY$;
+
+ALTER FUNCTION public.make_withdrawal(numeric, integer)
+    OWNER TO postgres;
+
+-- FUNCTION: public.approve_transfer(integer)
+
+-- DROP FUNCTION public.approve_transfer(integer);
+
+CREATE OR REPLACE FUNCTION public.approve_transfer(
+	transfer_id integer)
+    RETURNS boolean
+    LANGUAGE 'plpgsql'
+
+    COST 100
+    VOLATILE 
+    
+AS $BODY$
+declare
+   	transfer record;
+	origin_balance numeric;
+begin
+	Select * from transactions
+	into transfer
+	where transaction_id = transfer_id And status_id = 1;
+	if not found then
+		return false;
+	end if;
+	
+	Select balance From account 
+	into origin_balance	
+	Where account_id = transfer.origin;
+	if not found or origin_balance < transfer.amount then
+		update transactions
+		Set status_id = 3
+		Where transaction_id = transfer.transaction_id;
+		return false;
+	end if;
+    -- subtracting the amount from the sender's account 
+	Update account 
+	Set balance = origin_balance - transfer.amount
+	Where account_id = transfer.origin;
+    -- adding the amount to the receiver's account
+    update account 
+    set balance = balance + transfer.amount 
+    where account_id = transfer.destination;
+	
+	update transactions
+	Set status_id = 2
+	Where transaction_id = transfer.transaction_id;
+	return true;
+end;
+$BODY$;
+
+ALTER FUNCTION public.approve_transfer(integer)
+    OWNER TO postgres;
+
+-- FUNCTION: public.register_user(character varying, text, character varying, character varying, boolean)
+
+-- DROP FUNCTION public.register_user(character varying, text, character varying, character varying, boolean);
+
+CREATE OR REPLACE FUNCTION public.register_user(
+	userid character varying,
+	rawpassword text,
+	firstname character varying,
+	lastname character varying,
+	employee boolean)
+    RETURNS boolean
+    LANGUAGE 'plpgsql'
+
+    COST 100
+    VOLATILE 
+    
+AS $BODY$
+begin
+	if exists (Select from users where username = userId) THEN
+		return false;
+	end if;
+	
+	Insert into users (
+		username, 
+		encrypted_password, 
+		first_name, 
+		last_name, 
+		is_employee)
+		Values (
+		userId, 
+		crypt(rawPassword, gen_salt('bf')),
+		firstName,
+		lastName,
+		employee);
+	return true;
+end;
+$BODY$;
+
+ALTER FUNCTION public.register_user(character varying, text, character varying, character varying, boolean)
+    OWNER TO postgres;
+
+-- FUNCTION: public.login_user(character varying, text)
+
+-- DROP FUNCTION public.login_user(character varying, text);
+
+CREATE OR REPLACE FUNCTION public.login_user(
+	userid character varying,
+	rawpassword text)
+    RETURNS boolean
+    LANGUAGE 'plpgsql'
+
+    COST 100
+    VOLATILE 
+    
+AS $BODY$
+begin
+	if exists (Select from users 
+			   where username = userId and 
+			   encrypted_password = crypt(rawPassword, encrypted_password)) THEN
+		return true;
+	end if;
+	return false;
+end;
+$BODY$;
+
+ALTER FUNCTION public.login_user(character varying, text)
+    OWNER TO postgres;
