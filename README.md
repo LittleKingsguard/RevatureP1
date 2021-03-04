@@ -1,34 +1,41 @@
-## PROJECT NAME
-#Project Description
-Here goes your awesome project description!
+# Ledger Bank
+## Project Description
+This is a online banking portal using a Java/PostgreSQL backend with the Jackson and Jersey frameworks connected to a RESTful frontend built with React.
 
-# Technologies Used
-Tech 1 - version 1.0
-Tech 2 - version 2.0
-Tech 3 - version 3.0
-# Features
-List of features ready and TODOs for future development
+## Technologies Used
+Java - version 1.8
+Jersey - version 2.31
+Jackson - version 2.11
+PostgreSQL - version 13
+Maven - 3.2.4
+React - version 17
+Tomcat - version 9
 
-Awesome feature 1
-Awesome feature 2
-Awesome feature 3
-# To-do list:
+## Features
 
-Wow improvement to be done 1
-Wow improvement to be done 2
-# Getting Started
-(include git clone command) (include all environment setup steps)
+* Responsive, simplified frontend using React to render JSON passed from API calls
+* Secure login into system using PGcrypto to securely hash passwords into database 
+* Validates the availability of funds with attempting withdrawals and accepting transactions
 
-Be sure to include BOTH Windows and Unix command
-Be sure to mention if the commands only work on a specific platform (eg. AWS, GCP)
+## To-do list:
 
-# All the code required to get started
-Images of what it should look like
-# Usage
-Here, you instruct other people on how to use your project after they’ve installed it. This would also be a good place to include screenshots of your project in action.
+* Implement quick setup in main class to initialize PostgreSQL database from Java code
+* Implement authorization controls on all transactions
 
-# Contributors
-Here list the people who have contributed to this project. (ignore this section, if its a solo project)
+## Getting Started
 
-# License
-This project uses the following license: <license_name>.
+Install Java 1.8 or higher
+Install PostgreSQL 13 or higher
+Install Tomcat 9 or higher
+    git clone https://github.com/LittleKingsguard/RevatureAssignments.git
+Build Maven project to install dependencies
+Execute all scripts in Postgres init script.txt
+Set the Tomcat server to deploy the Maven build artifact of the project after compilation
+
+## Usage
+
+  Initialize the Tomcat server after setting up the runtime environment for deployment
+  After Tomcat startup, project should be available at localhost:8080/Project1
+
+## License
+This project uses the following license: Copyleft GPLv3
